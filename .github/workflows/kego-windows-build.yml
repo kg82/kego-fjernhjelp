@@ -7,40 +7,109 @@ on:
 
 env:
   FLUTTER_VERSION: "3.24.5"
-  CARGO_NDK_VERSION: "3.1.2"
+  LLVM_VERSION: "15.0.6"
+  RUST_VERSION: "1.75"
+  FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"
+  CARGO_EXPAND_VERSION: "1.0.95"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
   VERSION: "1.0.0"
 
 jobs:
-  build-windows:
-    runs-on: windows-2022
+  # ── Jobb 1: Generer Flutter-Rust bridge (på Ubuntu) ────────────────────────
+  generate-bridge:
+    runs-on: ubuntu-22.04
     steps:
-      - name: Checkout kildekode (med submodules)
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 1
 
-      # ── Patch branding ───────────────────────────────────────────
-      - name: Patch APP_NAME i hbb_common
+      - name: Installer systemavhengigheter
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y clang cmake curl gcc git g++ libclang-dev \
+            libgtk-3-dev llvm-dev nasm ninja-build pkg-config wget
+
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-unknown-linux-gnu
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: bridge-ubuntu-22.04
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Installer flutter_rust_bridge og cargo-expand
+        run: |
+          cargo install cargo-expand --version ${{ env.CARGO_EXPAND_VERSION }} --locked
+          cargo install flutter_rust_bridge_codegen --version ${{ env.FLUTTER_RUST_BRIDGE_VERSION }} --features "uuid" --locked
+          pushd flutter && sed -i -e 's/extended_text: 14.0.0/extended_text: 13.0.0/g' pubspec.yaml && flutter pub get && popd
+
+      - name: Kjør flutter_rust_bridge_codegen
+        run: |
+          ~/.cargo/bin/flutter_rust_bridge_codegen \
+            --rust-input ./src/flutter_ffi.rs \
+            --dart-output ./flutter/lib/generated_bridge.dart \
+            --c-output ./flutter/macos/Runner/bridge_generated.h
+          cp ./flutter/macos/Runner/bridge_generated.h ./flutter/ios/Runner/bridge_generated.h
+
+      - uses: actions/upload-artifact@master
+        with:
+          name: bridge-artifact
+          path: |
+            ./src/bridge_generated.rs
+            ./src/bridge_generated.io.rs
+            ./flutter/lib/generated_bridge.dart
+            ./flutter/lib/generated_bridge.freezed.dart
+            ./flutter/macos/Runner/bridge_generated.h
+            ./flutter/ios/Runner/bridge_generated.h
+
+  # ── Jobb 2: Bygg Windows .exe ───────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-2022
+    needs: generate-bridge
+    steps:
+      - name: Eksporter GitHub Actions cache-variabler
+        uses: actions/github-script@v6
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Hent bridge-artefakt
+        uses: actions/download-artifact@master
+        with:
+          name: bridge-artifact
+          path: ./
+
+      # ── Patch KEGO-branding ────────────────────────────────────────────────
+      - name: Patch APP_NAME
         shell: pwsh
         run: |
           $file = "libs/hbb_common/src/config.rs"
-          (Get-Content $file) -replace '"RustDesk"\.to_owned\(\)', '"KEGO Data Fjernhjelp".to_owned()' | Set-Content $file
-          Write-Host "APP_NAME patched"
+          (Get-Content $file) `
+            -replace '"RustDesk"\.to_owned\(\)', '"KEGO Data Fjernhjelp".to_owned()' |
+            Set-Content $file
+          Write-Host "APP_NAME patched til: KEGO Data Fjernhjelp"
 
-      - name: Legg inn KEGO-ikoner
+      - name: Legg inn KEGO-logo som ikoner
         shell: pwsh
         run: |
-          # Last ned KEGO-logo og konverter til ICO via PowerShell + .NET
-          $logoUrl = "https://kego.baksystem.no/assets/d8089989-4429-4d47-96a6-997b3a06f645"
-          Invoke-WebRequest $logoUrl -OutFile "kego-logo.png"
-
-          # Bruk magick (ImageMagick er tilgjengelig på windows-2022 runner)
-          magick kego-logo.png -background none -gravity center -extent 256x256 kego-256.png
-          magick kego-logo.png -background none -gravity center -extent 128x128 kego-128.png
-          magick kego-logo.png -background none -gravity center -extent 64x64 kego-64.png
-          magick kego-logo.png -background none -gravity center -extent 32x32 kego-32.png
-          magick kego-logo.png -background none -gravity center -extent 16x16 kego-16.png
+          $logo = "kego-logo.png"
+          Invoke-WebRequest "https://kego.baksystem.no/assets/d8089989-4429-4d47-96a6-997b3a06f645" -OutFile $logo
+          foreach ($size in @(16,32,64,128,256)) {
+            magick $logo -background none -gravity center -extent "${size}x${size}" "kego-${size}.png"
+          }
           magick kego-16.png kego-32.png kego-64.png kego-128.png kego-256.png res/icon.ico
           magick kego-32.png res/tray-icon.ico
           Copy-Item kego-256.png res/icon.png
@@ -48,49 +117,66 @@ jobs:
           Copy-Item kego-256.png res/128x128@2x.png
           Copy-Item kego-64.png  res/64x64.png
           Copy-Item kego-32.png  res/32x32.png
-          Write-Host "Ikoner lagt inn"
+          Write-Host "Ikoner byttet ut"
 
-      # ── Verktøy ──────────────────────────────────────────────────
-      - name: Installer Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
-
-      - name: Installer Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
-
-      - name: Cache Rust/Cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: ./
-
-      - name: Installer LLVM
+      # ── Verktøy ────────────────────────────────────────────────────────────
+      - name: Installer LLVM og Clang
         uses: KyleMayes/install-llvm-action@v1
         with:
-          version: "15.0"
+          version: ${{ env.LLVM_VERSION }}
 
-      - name: vcpkg — installer avhengigheter
-        run: |
-          vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
+      - uses: subosito/flutter-action@v2.12.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
+
+      # ── vcpkg (manifest mode) ──────────────────────────────────────────────
+      - name: Sett opp vcpkg med binary cache
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Installer vcpkg-avhengigheter (manifest mode)
         env:
-          VCPKG_ROOT: C:\vcpkg
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        shell: bash
+        run: |
+          $VCPKG_ROOT/vcpkg install \
+            --triplet x64-windows-static \
+            --x-install-root="$VCPKG_ROOT/installed" || {
+            find "$VCPKG_ROOT/" -name "*.log" | while read f; do
+              echo "$f:"; cat "$f"; echo ""
+            done
+            exit 1
+          }
 
-      # ── Bygg ─────────────────────────────────────────────────────
-      - name: Sett Flutter-miljø
+      # ── Flutter engine (RustDesk custom build) ─────────────────────────────
+      - name: Bruk RustDesk sin tilpassede Flutter-engine
         shell: pwsh
         run: |
-          flutter config --enable-windows-desktop
+          flutter doctor -v
           flutter precache --windows
+          $engineZip = "windows-x64-release.zip"
+          Invoke-WebRequest -Uri "https://github.com/rustdesk/engine/releases/download/main/$engineZip" -OutFile $engineZip
+          Expand-Archive -Path $engineZip -DestinationPath "windows-x64-release"
+          $flutterCache = "C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release"
+          Move-Item -Force windows-x64-release/* $flutterCache/
 
-      - name: Hent Flutter-avhengigheter
+      - name: Flutter pub get
         working-directory: flutter
         run: flutter pub get
 
-      - name: Bygg Windows (Release)
+      # ── Bygg ──────────────────────────────────────────────────────────────
+      - name: Bygg Windows (portable)
         shell: pwsh
         env:
           VCPKG_ROOT: C:\vcpkg
@@ -98,27 +184,34 @@ jobs:
           LIBCLANG_PATH: ${{ env.LLVM_PATH }}\bin
         run: |
           $env:CARGO_INCREMENTAL = "0"
-          python3 build.py --flutter --hwcodec 2>&1
+          python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
 
-      # ── Pakk og gi nytt navn ──────────────────────────────────────
-      - name: Gi nytt navn til exe og pakk
+      # ── Last ned tilleggsdriver og pakk ───────────────────────────────────
+      - name: Last ned usbmmidd
         shell: pwsh
         run: |
-          $src = "flutter\build\windows\x64\runner\Release"
-          Rename-Item "$src\rustdesk.exe" "hjelp.exe"
-          Compress-Archive -Path "$src\*" -DestinationPath "kego-fjernhjelp-windows.zip"
+          Invoke-WebRequest -Uri "https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip" -OutFile usbmmidd_v2.zip
+          Expand-Archive usbmmidd_v2.zip -DestinationPath .
+          Remove-Item -Path usbmmidd_v2\Win32 -Recurse
+          Remove-Item -Path "usbmmidd_v2\deviceinstaller64.exe","usbmmidd_v2\deviceinstaller.exe","usbmmidd_v2\usbmmidd.bat"
+          Move-Item -Force .\usbmmidd_v2 .\flutter\build\windows\x64\runner\Release\
+
+      - name: Gi exe nytt navn og pakk
+        shell: pwsh
+        run: |
+          $rel = "flutter\build\windows\x64\runner\Release"
+          Rename-Item "$rel\rustdesk.exe" "hjelp.exe"
+          Compress-Archive -Path "$rel\*" -DestinationPath "kego-fjernhjelp-windows.zip"
           Write-Host "Pakket: kego-fjernhjelp-windows.zip"
 
       - name: Last opp artefakt
         uses: actions/upload-artifact@v4
         with:
           name: kego-fjernhjelp-windows
-          path: |
-            kego-fjernhjelp-windows.zip
+          path: kego-fjernhjelp-windows.zip
           retention-days: 30
 
-      # ── Lag GitHub Release automatisk ────────────────────────────
-      - name: Opprett Release
+      - name: Opprett GitHub Release
         if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
