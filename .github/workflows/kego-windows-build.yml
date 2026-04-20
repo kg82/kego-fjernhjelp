@@ -1,0 +1,131 @@
+name: KEGO Data Fjernhjelp — Windows Build
+
+on:
+  push:
+    branches: [ kego-main ]
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: "3.24.5"
+  CARGO_NDK_VERSION: "3.1.2"
+  VERSION: "1.0.0"
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout kildekode (med submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      # ── Patch branding ───────────────────────────────────────────
+      - name: Patch APP_NAME i hbb_common
+        shell: pwsh
+        run: |
+          $file = "libs/hbb_common/src/config.rs"
+          (Get-Content $file) -replace '"RustDesk"\.to_owned\(\)', '"KEGO Data Fjernhjelp".to_owned()' | Set-Content $file
+          Write-Host "APP_NAME patched"
+
+      - name: Legg inn KEGO-ikoner
+        shell: pwsh
+        run: |
+          # Last ned KEGO-logo og konverter til ICO via PowerShell + .NET
+          $logoUrl = "https://kego.baksystem.no/assets/d8089989-4429-4d47-96a6-997b3a06f645"
+          Invoke-WebRequest $logoUrl -OutFile "kego-logo.png"
+
+          # Bruk magick (ImageMagick er tilgjengelig på windows-2022 runner)
+          magick kego-logo.png -background none -gravity center -extent 256x256 kego-256.png
+          magick kego-logo.png -background none -gravity center -extent 128x128 kego-128.png
+          magick kego-logo.png -background none -gravity center -extent 64x64 kego-64.png
+          magick kego-logo.png -background none -gravity center -extent 32x32 kego-32.png
+          magick kego-logo.png -background none -gravity center -extent 16x16 kego-16.png
+          magick kego-16.png kego-32.png kego-64.png kego-128.png kego-256.png res/icon.ico
+          magick kego-32.png res/tray-icon.ico
+          Copy-Item kego-256.png res/icon.png
+          Copy-Item kego-128.png res/128x128.png
+          Copy-Item kego-256.png res/128x128@2x.png
+          Copy-Item kego-64.png  res/64x64.png
+          Copy-Item kego-32.png  res/32x32.png
+          Write-Host "Ikoner lagt inn"
+
+      # ── Verktøy ──────────────────────────────────────────────────
+      - name: Installer Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Installer Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust/Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ./
+
+      - name: Installer LLVM
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: "15.0"
+
+      - name: vcpkg — installer avhengigheter
+        run: |
+          vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
+        env:
+          VCPKG_ROOT: C:\vcpkg
+
+      # ── Bygg ─────────────────────────────────────────────────────
+      - name: Sett Flutter-miljø
+        shell: pwsh
+        run: |
+          flutter config --enable-windows-desktop
+          flutter precache --windows
+
+      - name: Hent Flutter-avhengigheter
+        working-directory: flutter
+        run: flutter pub get
+
+      - name: Bygg Windows (Release)
+        shell: pwsh
+        env:
+          VCPKG_ROOT: C:\vcpkg
+          LLVM_HOME: ${{ env.LLVM_PATH }}
+          LIBCLANG_PATH: ${{ env.LLVM_PATH }}\bin
+        run: |
+          $env:CARGO_INCREMENTAL = "0"
+          python3 build.py --flutter --hwcodec 2>&1
+
+      # ── Pakk og gi nytt navn ──────────────────────────────────────
+      - name: Gi nytt navn til exe og pakk
+        shell: pwsh
+        run: |
+          $src = "flutter\build\windows\x64\runner\Release"
+          Rename-Item "$src\rustdesk.exe" "hjelp.exe"
+          Compress-Archive -Path "$src\*" -DestinationPath "kego-fjernhjelp-windows.zip"
+          Write-Host "Pakket: kego-fjernhjelp-windows.zip"
+
+      - name: Last opp artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: kego-fjernhjelp-windows
+          path: |
+            kego-fjernhjelp-windows.zip
+          retention-days: 30
+
+      # ── Lag GitHub Release automatisk ────────────────────────────
+      - name: Opprett Release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}-kego
+          name: "KEGO Data Fjernhjelp v${{ env.VERSION }}"
+          files: kego-fjernhjelp-windows.zip
+          body: |
+            ## KEGO Data Fjernhjelp for Windows
+            Last ned `kego-fjernhjelp-windows.zip`, pakk ut og kjør `hjelp.exe`.
+            Ingen installasjon nødvendig.
