@@ -5,6 +5,9 @@ on:
     branches: [ kego-main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 env:
   FLUTTER_VERSION: "3.24.5"
   LLVM_VERSION: "15.0.6"
