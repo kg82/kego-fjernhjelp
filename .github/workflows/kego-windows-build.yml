@@ -108,14 +108,20 @@ jobs:
       - name: Patch incoming-only modus (skjul tilkoblingspanel)
         shell: bash
         run: |
-          # Hardcode is_incoming_only() til å returnere true
           file="libs/hbb_common/src/config.rs"
-          # Erstatt hele funksjonen fra pub fn til closing brace
-          sed -i '/^pub fn is_incoming_only() -> bool {/,/^}/c\
-pub fn is_incoming_only() -> bool {\
-    true\
-}' "$file"
-          echo "is_incoming_only() hardkodet til true"
+          # Lage ny funksjon som altid returnerer true
+          python3 << 'PATCH_EOF'
+import re
+with open('libs/hbb_common/src/config.rs', 'r') as f:
+    content = f.read()
+# Erstatt is_incoming_only-funksjonen
+pattern = r'pub fn is_incoming_only\(\) -> bool \{[^}]*\}'
+replacement = 'pub fn is_incoming_only() -> bool {\n    true\n}'
+content = re.sub(pattern, replacement, content)
+with open('libs/hbb_common/src/config.rs', 'w') as f:
+    f.write(content)
+print("is_incoming_only() patched")
+PATCH_EOF
 
       - name: Legg inn KEGO-logo (ikoner + in-app logo)
         shell: pwsh
