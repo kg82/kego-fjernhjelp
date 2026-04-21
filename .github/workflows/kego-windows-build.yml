@@ -16,6 +16,7 @@ env:
   CARGO_EXPAND_VERSION: "1.0.95"
   VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
   VERSION: "1.0.0"
+  BUILD_NR: ${{ github.run_number }}
 
 jobs:
   # ── Jobb 1: Generer Flutter-Rust bridge (på Ubuntu) ────────────────────────
@@ -108,7 +109,9 @@ jobs:
       - name: Patch incoming-only modus (QuickSupport)
         run: python3 .github/patch_incoming_only.py
 
-      - name: Patch KEGO UI customization (tekster + UAC)
+      - name: Patch KEGO UI customization (tekster + UAC + buildnr)
+        env:
+          BUILD_NR: ${{ github.run_number }}
         run: python3 .github/patch_kego_ui.py
 
       - name: Legg inn KEGO-logo (ikoner + in-app logo)
@@ -151,7 +154,11 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           targets: x86_64-pc-windows-msvc
 
+      # Cache-nøkkel inkluderer patch-filenes hash + run_number
+      # Dette sikrer at endringer i patch-skript alltid trigger ny kompilering
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: kego-${{ hashFiles('.github/patch_*.py') }}-${{ github.run_number }}
 
       # ── vcpkg (manifest mode) ──────────────────────────────────────────────
       - name: Sett opp vcpkg med binary cache
@@ -203,19 +210,21 @@ jobs:
           python3 .\build.py --portable --hwcodec --flutter --vram
 
       # ── Last ned tilleggsdriver og pakk ───────────────────────────────────
-      - name: Gi portable-exe nytt navn
+      - name: Gi portable-exe nytt navn (med buildnummer)
         shell: pwsh
+        env:
+          BUILD_NR: ${{ github.run_number }}
         run: |
-          # build.py --portable uten --skip-portable-pack produserer en self-extracting exe
+          $outName = "hjelp-${env:BUILD_NR}.exe"
           $packer = Get-ChildItem -Recurse -Filter "rustdesk-*.exe" | Select-Object -First 1
           if ($packer) {
-            Rename-Item $packer.FullName "hjelp.exe"
-            Copy-Item "hjelp.exe" "kego-fjernhjelp-windows.zip"
-            Write-Host "Self-extracting exe: hjelp.exe ($([math]::Round((Get-Item hjelp.exe).Length/1MB, 1)) MB)"
+            Rename-Item $packer.FullName $outName
+            Copy-Item $outName "kego-fjernhjelp-windows.zip"
+            Write-Host "Self-extracting exe: $outName ($([math]::Round((Get-Item $outName).Length/1MB, 1)) MB)"
           } else {
             # Fallback: pakk release-mappen som zip
             $rel = "flutter\build\windows\x64\runner\Release"
-            Rename-Item "$rel\rustdesk.exe" "hjelp.exe" -ErrorAction SilentlyContinue
+            Rename-Item "$rel\rustdesk.exe" $outName -ErrorAction SilentlyContinue
             Compress-Archive -Path "$rel\*" -DestinationPath "kego-fjernhjelp-windows.zip"
             Write-Host "Fallback: zip-pakke"
           }
@@ -231,10 +240,10 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.VERSION }}-kego
-          name: "KEGO Data Fjernhjelp v${{ env.VERSION }}"
+          tag_name: v${{ env.VERSION }}-kego-${{ github.run_number }}
+          name: "KEGO Data Fjernhjelp v${{ env.VERSION }} (build ${{ github.run_number }})"
           files: kego-fjernhjelp-windows.zip
           body: |
-            ## KEGO Data Fjernhjelp for Windows
-            Last ned `kego-fjernhjelp-windows.zip`, pakk ut og kjør `hjelp.exe`.
+            ## KEGO Data Fjernhjelp for Windows — build ${{ github.run_number }}
+            Last ned `kego-fjernhjelp-windows.zip`, pakk ut og kjør `hjelp-${{ github.run_number }}.exe`.
             Ingen installasjon nødvendig.
