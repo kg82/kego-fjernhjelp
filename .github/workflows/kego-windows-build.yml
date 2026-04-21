@@ -103,13 +103,28 @@ jobs:
           (Get-Content $file) `
             -replace '"RustDesk"\.to_owned\(\)', '"KEGO Data Fjernhjelp".to_owned()' |
             Set-Content $file
-          Write-Host "APP_NAME patched til: KEGO Data Fjernhjelp"
+          Write-Host "APP_NAME patched"
 
-      - name: Legg inn KEGO-logo som ikoner
+      - name: Patch incoming-only modus (skjul tilkoblingspanel)
+        shell: pwsh
+        run: |
+          # Hardcode is_incoming_only() til å returnere true
+          # → viser kun ID + passord, skjuler "Koble til"-panelet
+          $file = "libs/hbb_common/src/config.rs"
+          $content = Get-Content $file -Raw
+          $content = $content -replace `
+            '(?s)(pub fn is_incoming_only\(\) -> bool \{)[^}]+(})', `
+            '$1`n    true`n$2'
+          Set-Content $file $content
+          Write-Host "is_incoming_only() hardkodet til true"
+
+      - name: Legg inn KEGO-logo (ikoner + in-app logo)
         shell: pwsh
         run: |
           $logo = "kego-logo.png"
           Invoke-WebRequest "https://kego.baksystem.no/assets/d8089989-4429-4d47-96a6-997b3a06f645" -OutFile $logo
+
+          # App-ikoner (exe-ikon, tittelinje, oppgavelinje)
           foreach ($size in @(16,32,64,128,256)) {
             magick $logo -background none -gravity center -extent "${size}x${size}" "kego-${size}.png"
           }
@@ -120,7 +135,12 @@ jobs:
           Copy-Item kego-256.png res/128x128@2x.png
           Copy-Item kego-64.png  res/64x64.png
           Copy-Item kego-32.png  res/32x32.png
-          Write-Host "Ikoner byttet ut"
+
+          # In-app logo (vises øverst i QuickSupport-vinduet, maks 300x60)
+          # Originallogoen er 200x56 — passer perfekt uten skalering
+          Copy-Item $logo "flutter/assets/logo.png"
+
+          Write-Host "Ikoner og in-app logo lagt inn"
 
       # ── Verktøy ────────────────────────────────────────────────────────────
       - name: Installer LLVM og Clang
