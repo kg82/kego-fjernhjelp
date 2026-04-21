@@ -105,18 +105,8 @@ jobs:
             Set-Content $file
           Write-Host "APP_NAME patched"
 
-      - name: Patch incoming-only modus
-        run: python3 << 'PATCHEOF'
-import re
-with open('libs/hbb_common/src/config.rs', 'r') as f:
-    content = f.read()
-pattern = r'pub fn is_incoming_only\(\) -> bool \{[^}]*\}'
-replacement = 'pub fn is_incoming_only() -> bool {\n    true\n}'
-content = re.sub(pattern, replacement, content)
-with open('libs/hbb_common/src/config.rs', 'w') as f:
-    f.write(content)
-print("is_incoming_only() patched")
-PATCHEOF
+      - name: Patch incoming-only modus (QuickSupport)
+        run: python3 .github/patch_incoming_only.py
 
       - name: Legg inn KEGO-logo (ikoner + in-app logo)
         shell: pwsh
