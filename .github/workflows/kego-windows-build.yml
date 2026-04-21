@@ -108,6 +108,9 @@ jobs:
       - name: Patch incoming-only modus (QuickSupport)
         run: python3 .github/patch_incoming_only.py
 
+      - name: Patch KEGO UI customization (tekster + UAC)
+        run: python3 .github/patch_kego_ui.py
+
       - name: Legg inn KEGO-logo (ikoner + in-app logo)
         shell: pwsh
         run: |
