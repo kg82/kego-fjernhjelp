@@ -110,7 +110,11 @@ jobs:
         run: |
           # Hardcode is_incoming_only() til å returnere true
           file="libs/hbb_common/src/config.rs"
-          sed -i '2672,2674s/.*/pub fn is_incoming_only() -> bool {\n    true\n}/' "$file"
+          # Erstatt hele funksjonen fra pub fn til closing brace
+          sed -i '/^pub fn is_incoming_only() -> bool {/,/^}/c\
+pub fn is_incoming_only() -> bool {\
+    true\
+}' "$file"
           echo "is_incoming_only() hardkodet til true"
 
       - name: Legg inn KEGO-logo (ikoner + in-app logo)
