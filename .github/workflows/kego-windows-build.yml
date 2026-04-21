@@ -187,25 +187,25 @@ jobs:
           LIBCLANG_PATH: ${{ env.LLVM_PATH }}\bin
         run: |
           $env:CARGO_INCREMENTAL = "0"
-          python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
+          python3 .\build.py --portable --hwcodec --flutter --vram
 
       # ── Last ned tilleggsdriver og pakk ───────────────────────────────────
-      - name: Last ned usbmmidd
+      - name: Gi portable-exe nytt navn
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip" -OutFile usbmmidd_v2.zip
-          Expand-Archive usbmmidd_v2.zip -DestinationPath .
-          Remove-Item -Path usbmmidd_v2\Win32 -Recurse
-          Remove-Item -Path "usbmmidd_v2\deviceinstaller64.exe","usbmmidd_v2\deviceinstaller.exe","usbmmidd_v2\usbmmidd.bat"
-          Move-Item -Force .\usbmmidd_v2 .\flutter\build\windows\x64\runner\Release\
-
-      - name: Gi exe nytt navn og pakk
-        shell: pwsh
-        run: |
-          $rel = "flutter\build\windows\x64\runner\Release"
-          Rename-Item "$rel\rustdesk.exe" "hjelp.exe"
-          Compress-Archive -Path "$rel\*" -DestinationPath "kego-fjernhjelp-windows.zip"
-          Write-Host "Pakket: kego-fjernhjelp-windows.zip"
+          # build.py --portable uten --skip-portable-pack produserer en self-extracting exe
+          $packer = Get-ChildItem -Recurse -Filter "rustdesk-*.exe" | Select-Object -First 1
+          if ($packer) {
+            Rename-Item $packer.FullName "hjelp.exe"
+            Copy-Item "hjelp.exe" "kego-fjernhjelp-windows.zip"
+            Write-Host "Self-extracting exe: hjelp.exe ($([math]::Round((Get-Item hjelp.exe).Length/1MB, 1)) MB)"
+          } else {
+            # Fallback: pakk release-mappen som zip
+            $rel = "flutter\build\windows\x64\runner\Release"
+            Rename-Item "$rel\rustdesk.exe" "hjelp.exe" -ErrorAction SilentlyContinue
+            Compress-Archive -Path "$rel\*" -DestinationPath "kego-fjernhjelp-windows.zip"
+            Write-Host "Fallback: zip-pakke"
+          }
 
       - name: Last opp artefakt
         uses: actions/upload-artifact@v4
