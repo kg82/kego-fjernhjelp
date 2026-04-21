@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Patch RustDesk for KEGO Data QuickSupport customization"""
 import re
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # 1. Disable UAC warning in incoming-only mode
 print("[1/3] Disabling UAC warning...")
@@ -16,7 +20,7 @@ video_svc = re.sub(
 
 with open('src/server/video_service.rs', 'w') as f:
     f.write(video_svc)
-print("  ✓ UAC elevation check skipped in incoming-only mode")
+print("  [OK] UAC elevation check skipped in incoming-only mode")
 
 # 2. Update Norwegian strings
 print("[2/3] Updating Norwegian UI strings...")
@@ -37,7 +41,7 @@ nb_lang = nb_lang.replace(
 
 with open('src/lang/nb.rs', 'w') as f:
     f.write(nb_lang)
-print("  ✓ Norwegian strings updated:")
+print("  [OK] Norwegian strings updated:")
 print("    - 'Your Desktop' → 'Start Fjernhjelp?'")
 print("    - desk_tip → KEGO Data instruction + note")
 
@@ -54,6 +58,6 @@ en_lang = en_lang.replace(
 
 with open('src/lang/en.rs', 'w') as f:
     f.write(en_lang)
-print("  ✓ English desk_tip updated with reconnection note")
+print("  [OK] English desk_tip updated with reconnection note")
 
-print("\n✅ All customizations applied!")
+print("\n[SUCCESS] All customizations applied!")
