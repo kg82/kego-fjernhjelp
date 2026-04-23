@@ -76,16 +76,9 @@ jobs:
 
   # ── Jobb 2: Bygg Windows .exe ───────────────────────────────────────────────
   build-windows:
-    runs-on: windows-2022
+    runs-on: [self-hosted, windows, x64]
     needs: generate-bridge
     steps:
-      - name: Eksporter GitHub Actions cache-variabler
-        uses: actions/github-script@v6
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
       - uses: actions/checkout@v4
         with:
           submodules: recursive
