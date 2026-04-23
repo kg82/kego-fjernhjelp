@@ -118,11 +118,19 @@ jobs:
         shell: pwsh
         run: |
           $logo = "kego-logo.png"
-          Invoke-WebRequest "https://kego.baksystem.no/assets/d8089989-4429-4d47-96a6-997b3a06f645" -OutFile $logo
+          $logoFull = "kego-logo-full.png"
+          $logoIcon = "kego-logo-icon.png"
 
-          # App-ikoner (exe-ikon, tittelinje, oppgavelinje)
+          Invoke-WebRequest "https://kego.baksystem.no/assets/d8089989-4429-4d47-96a6-997b3a06f645" -OutFile $logoFull
+
+          # Crop logo to remove text: original 200x56, keep top portion as square icon (56x56)
+          # This removes "KEGO DATA" and "IT & TEKNIKK" text, keeping only the mark
+          magick $logoFull -crop 56x56+0+0 +repage -background none -gravity center -extent 56x56 $logoIcon
+          Write-Host "Logo icon cropped (text removed)"
+
+          # App-ikoner (exe-ikon, tittelinje, oppgavelinje) — bruker croppet icon
           foreach ($size in @(16,32,64,128,256)) {
-            magick $logo -background none -gravity center -extent "${size}x${size}" "kego-${size}.png"
+            magick $logoIcon -background none -gravity center -extent "${size}x${size}" "kego-${size}.png"
           }
           magick kego-16.png kego-32.png kego-64.png kego-128.png kego-256.png res/icon.ico
           magick kego-32.png res/tray-icon.ico
@@ -133,24 +141,10 @@ jobs:
           Copy-Item kego-32.png  res/32x32.png
 
           # In-app logo (vises øverst i QuickSupport-vinduet, maks 300x60)
-          # Originallogoen er 200x56 — passer perfekt uten skalering
-          Copy-Item $logo "flutter/assets/logo.png"
+          # Full logo med tekst
+          Copy-Item $logoFull "flutter/assets/logo.png"
 
-          Write-Host "Ikoner og in-app logo lagt inn"
-
-      - name: Bruk KEGO favicon som app-ikon
-        shell: pwsh
-        run: |
-          Write-Host "Henter favicon fra kego.no..."
-          Invoke-WebRequest "https://kego.no/favicon.ico" -OutFile "kego-favicon.ico" -ErrorAction SilentlyContinue
-
-          if (Test-Path "kego-favicon.ico") {
-            Write-Host "Favicon funnet, bruker som app-ikon"
-            Copy-Item "kego-favicon.ico" "res/icon.ico"
-            Write-Host "App-ikon oppdatert fra favicon"
-          } else {
-            Write-Host "Favicon ikke funnet, bruker logo-basert ikon"
-          }
+          Write-Host "App-ikoner (fra cropped mark) og in-app logo (full) lagt inn"
 
       # ── Verktøy ────────────────────────────────────────────────────────────
       - name: Installer LLVM og Clang
