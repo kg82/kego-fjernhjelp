@@ -24,9 +24,6 @@ config = re.sub(
 
 # 1a. Patch is_disable_installation() to return true in incoming-only mode.
 #     This prevents the "install_tip" / UAC warning card from showing in the Flutter UI.
-#     The Flutter code at desktop_home_page.dart checks:
-#       if (isWindows && !bind.isDisableInstallation()) { ... show install_tip ... }
-#     By returning true when is_incoming_only(), the entire block is skipped.
 config = re.sub(
     r'pub fn is_disable_installation\(\) -> bool \{[^}]*\}',
     'pub fn is_disable_installation() -> bool {\n    if is_incoming_only() { return true; }\n    is_some_hard_opton("disable-installation")\n}',
@@ -38,7 +35,7 @@ with open('libs/hbb_common/src/config.rs', 'w') as f:
 print(f"  [OK] APP_NAME satt til '{app_name}'")
 print("  [OK] is_disable_installation() returnerer true i incoming-only modus")
 
-# 1b. Disable UAC background thread in video_service.rs (defence in depth)
+# 1b. Disable UAC background thread in video_service.rs
 print("[1/5] Disabling UAC background thread...")
 with open('src/server/video_service.rs', 'r') as f:
     video_svc = f.read()
@@ -55,54 +52,44 @@ print("  [OK] UAC elevation thread skipped in incoming-only mode")
 
 # 2. Update Norwegian strings
 print("[2/5] Updating Norwegian UI strings...")
-with open('src/lang/nb.rs', 'r') as f:
+with open('src/lang/nb.rs', 'r', encoding='utf-8') as f:
     nb_lang = f.read()
 
+# Replace desk_tip with new text (UTF-8 aware)
 nb_lang = nb_lang.replace(
-    '("Your Desktop", "Ditt skrivebord")',
-    '("Your Desktop", "Start Fjernhjelp?")'
+    '("desk_tip", "Du kan få adgang til ditt skrivebord med denne ID og passord.")',
+    '("desk_tip", "Del ID og passord med representanter fra KEGO Data.")'
 )
 
+# Hide install_tip
 nb_lang = nb_lang.replace(
-    '("desk_tip", "Du kan fa adgang til ditt skrivebord med denne ID og passord.")',
-    '("desk_tip", "Oppgi ID og engangskoden til representantet fra KEGO Data. Merk: Du kan ikke koble til igjen med samme ID og passord senere.")'
-)
-nb_lang = nb_lang.replace(
-    '("desk_tip", "Du kan f\u00e5 adgang til ditt skrivebord med denne ID og passord.")',
-    '("desk_tip", "Oppgi ID og engangskoden til representantet fra KEGO Data. Merk: Du kan ikke koble til igjen med samme ID og passord senere.")'
-)
-
-# Also hide install_tip text entirely for Norwegian
-nb_lang = nb_lang.replace(
-    '("install_tip", "P\u00e5 grunn av UAC kan RustDesk ikke fungere korrekt i enkelte tillfeller p\u00e5 fjernskrivebordet. For \u00e5 unng\u00e5 UAC klikker du p\u00e5 knappen nedenfor for \u00e5 installere RustDesk p\u00e5 systemet")',
+    '("install_tip", "På grunn av UAC kan RustDesk ikke fungere korrekt i enkelte tillfeller på fjernskrivebordet. For å unngå UAC klikker du på knappen nedenfor for å installere RustDesk på systemet")',
     '("install_tip", "")'
 )
 
-with open('src/lang/nb.rs', 'w') as f:
+with open('src/lang/nb.rs', 'w', encoding='utf-8') as f:
     f.write(nb_lang)
 print("  [OK] Norwegian strings updated:")
-print("    - 'Your Desktop' -> 'Start Fjernhjelp?'")
-print("    - desk_tip -> KEGO Data instruction + note")
+print("    - desk_tip -> 'Del ID og passord med representanter fra KEGO Data.'")
 print("    - install_tip -> empty (UAC warning hidden)")
 
 # 3. Update English strings
 print("[3/5] Updating English UI strings...")
-with open('src/lang/en.rs', 'r') as f:
+with open('src/lang/en.rs', 'r', encoding='utf-8') as f:
     en_lang = f.read()
 
 en_lang = en_lang.replace(
     '("desk_tip", "Your desktop can be accessed with this ID and password.")',
-    '("desk_tip", "Provide your ID and one-time password to the KEGO Data representative. Note: You cannot reconnect with the same ID and password later.")'
+    '("desk_tip", "Share your ID and password with KEGO Data representatives.")'
 )
 
-# Also hide install_tip for English fallback
 en_lang = en_lang.replace(
     '("install_tip", "Due to UAC, RustDesk can not work properly as the remote side in some cases. To avoid UAC, please click the button below to install RustDesk to the system.")',
     '("install_tip", "")'
 )
 
-with open('src/lang/en.rs', 'w') as f:
+with open('src/lang/en.rs', 'w', encoding='utf-8') as f:
     f.write(en_lang)
-print("  [OK] English strings updated (desk_tip + install_tip cleared)")
+print("  [OK] English strings updated (desk_tip + install_tip)")
 
 print("\n[SUCCESS] All customizations applied!")
