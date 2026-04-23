@@ -88,6 +88,22 @@ en_lang = en_lang.replace(
     '("install_tip", "")'
 )
 
+# 4. Hide "powered by RustDesk" in incoming-only mode (common.dart)
+print("[4/5] Hiding 'powered by RustDesk'...")
+with open('flutter/lib/common.dart', 'r', encoding='utf-8') as f:
+    common = f.read()
+
+common = re.sub(
+    r'Widget loadPowered\(BuildContext context\) \{[^}]*if \(bind\.mainGetBuildinOption\(key: "hide-powered-by-me"\) == \'Y\'\) \{[^}]*\}',
+    'Widget loadPowered(BuildContext context) {\n  if (bind.isIncomingOnly() || bind.mainGetBuildinOption(key: "hide-powered-by-me") == \'Y\') {\n    return SizedBox.shrink();\n  }',
+    common,
+    flags=re.DOTALL
+)
+
+with open('flutter/lib/common.dart', 'w', encoding='utf-8') as f:
+    f.write(common)
+print("  [OK] 'powered by RustDesk' hidden in incoming-only mode")
+
 with open('src/lang/en.rs', 'w', encoding='utf-8') as f:
     f.write(en_lang)
 print("  [OK] English strings updated (desk_tip + install_tip)")

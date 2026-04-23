@@ -138,6 +138,20 @@ jobs:
 
           Write-Host "Ikoner og in-app logo lagt inn"
 
+      - name: Bruk KEGO favicon som app-ikon
+        shell: pwsh
+        run: |
+          Write-Host "Henter favicon fra kego.no..."
+          Invoke-WebRequest "https://kego.no/favicon.ico" -OutFile "kego-favicon.ico" -ErrorAction SilentlyContinue
+
+          if (Test-Path "kego-favicon.ico") {
+            Write-Host "Favicon funnet, bruker som app-ikon"
+            Copy-Item "kego-favicon.ico" "res/icon.ico"
+            Write-Host "App-ikon oppdatert fra favicon"
+          } else {
+            Write-Host "Favicon ikke funnet, bruker logo-basert ikon"
+          }
+
       # ── Verktøy ────────────────────────────────────────────────────────────
       - name: Installer LLVM og Clang
         uses: KyleMayes/install-llvm-action@v1
