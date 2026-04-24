@@ -9,7 +9,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 build_nr = os.environ.get("BUILD_NR", "0")
 app_name = f"KEGO Data Fjernhjelp (build-{build_nr})"
-print(f"[0/5] Build nr: {build_nr} — app name: '{app_name}'")
+print(f"[0/6] Build nr: {build_nr} — app name: '{app_name}'")
 
 # 0. Embed build number into APP_NAME default in config.rs
 print("[0/5] Setter build-nummer i APP_NAME...")
@@ -107,5 +107,20 @@ print("  [OK] 'powered by RustDesk' hidden in incoming-only mode")
 with open('src/lang/en.rs', 'w', encoding='utf-8') as f:
     f.write(en_lang)
 print("  [OK] English strings updated (desk_tip + install_tip)")
+
+# 5. Configure custom RustDesk server (remote.baksystem.no)
+print("[5/6] Configuring custom RustDesk server...")
+with open('libs/hbb_common/src/config.rs', 'r') as f:
+    config_rs = f.read()
+
+config_rs = re.sub(
+    r'pub const RENDEZVOUS_SERVERS: &\[&str\] = &\["rs-ny\.rustdesk\.com"\];',
+    'pub const RENDEZVOUS_SERVERS: &[&str] = &["remote.baksystem.no"];',
+    config_rs
+)
+
+with open('libs/hbb_common/src/config.rs', 'w') as f:
+    f.write(config_rs)
+print("  [OK] RustDesk server configured to 'remote.baksystem.no'")
 
 print("\n[SUCCESS] All customizations applied!")
