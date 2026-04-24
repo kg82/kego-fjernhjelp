@@ -108,8 +108,8 @@ with open('src/lang/en.rs', 'w', encoding='utf-8') as f:
     f.write(en_lang)
 print("  [OK] English strings updated (desk_tip + install_tip)")
 
-# 5. Configure custom RustDesk server (remote.baksystem.no)
-print("[5/6] Configuring custom RustDesk server...")
+# 5. Configure custom RustDesk server (remote.baksystem.no) + public key
+print("[5/6] Configuring custom RustDesk server and public key...")
 with open('libs/hbb_common/src/config.rs', 'r') as f:
     config_rs = f.read()
 
@@ -119,8 +119,15 @@ config_rs = re.sub(
     config_rs
 )
 
+config_rs = re.sub(
+    r'pub const RS_PUB_KEY: &str = "[^"]+";',
+    'pub const RS_PUB_KEY: &str = "1bpTsEiTj4LHyQkGFImLJ0hYA1cmMzogalPczbsKOlU=";',
+    config_rs
+)
+
 with open('libs/hbb_common/src/config.rs', 'w') as f:
     f.write(config_rs)
 print("  [OK] RustDesk server configured to 'remote.baksystem.no'")
+print("  [OK] RS_PUB_KEY satt til server-nøkkel")
 
 print("\n[SUCCESS] All customizations applied!")
