@@ -130,4 +130,18 @@ with open('libs/hbb_common/src/config.rs', 'w') as f:
 print("  [OK] RustDesk server configured to 'remote.baksystem.no'")
 print("  [OK] RS_PUB_KEY satt til server-nøkkel")
 
+# 6. Force dark theme as default
+print("[6/6] Forcing dark theme as default...")
+with open('flutter/lib/common.dart', 'r', encoding='utf-8') as f:
+    common = f.read()
+
+common = common.replace(
+    'static ThemeMode getThemeModePreference() {\n    return themeModeFromString(bind.mainGetLocalOption(key: kCommConfKeyTheme));\n  }',
+    'static ThemeMode getThemeModePreference() {\n    final stored = bind.mainGetLocalOption(key: kCommConfKeyTheme);\n    if (stored.isEmpty || stored == \'system\') return ThemeMode.dark;\n    return themeModeFromString(stored);\n  }'
+)
+
+with open('flutter/lib/common.dart', 'w', encoding='utf-8') as f:
+    f.write(common)
+print("  [OK] Mørkt tema satt som standard")
+
 print("\n[SUCCESS] All customizations applied!")

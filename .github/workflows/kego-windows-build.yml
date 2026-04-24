@@ -140,6 +140,9 @@ jobs:
           Copy-Item kego-64.png  res/64x64.png
           Copy-Item kego-32.png  res/32x32.png
 
+          # Flutter Windows runner icon (fil-ikon og oppgavelinje-ikon)
+          Copy-Item res/icon.ico flutter/windows/runner/resources/app_icon.ico
+
           # In-app logo (vises øverst i QuickSupport-vinduet, maks 300x60)
           # Full logo med tekst
           Copy-Item $logoFull "flutter/assets/logo.png"
