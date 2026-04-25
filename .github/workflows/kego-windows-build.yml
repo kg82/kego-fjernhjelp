@@ -96,59 +96,6 @@ jobs:
           name: bridge-artifact
           path: ./
 
-      # ── Patch KEGO-branding ────────────────────────────────────────────────
-      - name: Patch APP_NAME
-        shell: pwsh
-        run: |
-          $file = "libs/hbb_common/src/config.rs"
-          (Get-Content $file) `
-            -replace '"RustDesk"\.to_owned\(\)', '"KEGO Data Fjernhjelp".to_owned()' |
-            Set-Content $file
-          Write-Host "APP_NAME patched"
-
-      - name: Patch incoming-only modus (QuickSupport)
-        run: python3 .github/patch_incoming_only.py
-
-      - name: Patch KEGO UI customization (tekster + UAC + buildnr)
-        env:
-          BUILD_NR: ${{ github.run_number }}
-        run: python3 .github/patch_kego_ui.py
-
-      - name: Legg inn KEGO-logo (ikoner + in-app logo)
-        shell: pwsh
-        run: |
-          $logo = "kego-logo.png"
-          $logoFull = "kego-logo-full.png"
-          $logoIcon = "kego-logo-icon.png"
-
-          Invoke-WebRequest "https://kego.baksystem.no/assets/d8089989-4429-4d47-96a6-997b3a06f645" -OutFile $logoFull
-
-          # Crop logo to remove text: original 200x56, keep top portion as square icon (56x56)
-          # This removes "KEGO DATA" and "IT & TEKNIKK" text, keeping only the mark
-          magick $logoFull -crop 56x56+0+0 +repage -background none -gravity center -extent 56x56 $logoIcon
-          Write-Host "Logo icon cropped (text removed)"
-
-          # App-ikoner (exe-ikon, tittelinje, oppgavelinje) — bruker croppet icon
-          foreach ($size in @(16,32,64,128,256)) {
-            magick $logoIcon -background none -gravity center -extent "${size}x${size}" "kego-${size}.png"
-          }
-          magick kego-16.png kego-32.png kego-64.png kego-128.png kego-256.png res/icon.ico
-          magick kego-32.png res/tray-icon.ico
-          Copy-Item kego-256.png res/icon.png
-          Copy-Item kego-128.png res/128x128.png
-          Copy-Item kego-256.png res/128x128@2x.png
-          Copy-Item kego-64.png  res/64x64.png
-          Copy-Item kego-32.png  res/32x32.png
-
-          # Flutter Windows runner icon (fil-ikon og oppgavelinje-ikon)
-          Copy-Item res/icon.ico flutter/windows/runner/resources/app_icon.ico
-
-          # In-app logo (vises øverst i QuickSupport-vinduet, maks 300x60)
-          # Full logo med tekst
-          Copy-Item $logoFull "flutter/assets/logo.png"
-
-          Write-Host "App-ikoner (fra cropped mark) og in-app logo (full) lagt inn"
-
       # ── Verktøy ────────────────────────────────────────────────────────────
       - name: Installer LLVM og Clang
         uses: KyleMayes/install-llvm-action@v1
@@ -165,13 +112,11 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           targets: x86_64-pc-windows-msvc
 
-      # Cache-nøkkel inkluderer patch-filenes hash + run_number
-      # Dette sikrer at endringer i patch-skript alltid trigger ny kompilering
       - uses: Swatinem/rust-cache@v2
         with:
           key: kego-${{ hashFiles('.github/patch_*.py') }}-${{ github.run_number }}
 
-      # ── vcpkg (manifest mode) ──────────────────────────────────────────────
+      # ── vcpkg ──────────────────────────────────────────────────────────────
       - name: Sett opp vcpkg med binary cache
         uses: lukka/run-vcpkg@v11
         with:
@@ -209,19 +154,60 @@ jobs:
         working-directory: flutter
         run: flutter pub get
 
-      # ── Bygg ──────────────────────────────────────────────────────────────
-      - name: Bygg Windows (portable)
+      # ── KEGO-logo (felles for begge builds) ───────────────────────────────
+      - name: Legg inn KEGO-logo
+        shell: pwsh
+        run: |
+          $logoFull = "kego-logo-full.png"
+          $logoIcon = "kego-logo-icon.png"
+
+          Invoke-WebRequest "https://kego.baksystem.no/assets/d8089989-4429-4d47-96a6-997b3a06f645" -OutFile $logoFull
+
+          magick $logoFull -crop 56x56+0+0 +repage -background none -gravity center -extent 56x56 $logoIcon
+
+          foreach ($size in @(16,32,64,128,256)) {
+            magick $logoIcon -background none -gravity center -extent "${size}x${size}" "kego-${size}.png"
+          }
+          magick kego-16.png kego-32.png kego-64.png kego-128.png kego-256.png res/icon.ico
+          magick kego-32.png res/tray-icon.ico
+          Copy-Item kego-256.png res/icon.png
+          Copy-Item kego-128.png res/128x128.png
+          Copy-Item kego-256.png res/128x128@2x.png
+          Copy-Item kego-64.png  res/64x64.png
+          Copy-Item kego-32.png  res/32x32.png
+          Copy-Item res/icon.ico flutter/windows/runner/resources/app_icon.ico
+          Copy-Item $logoFull "flutter/assets/logo.png"
+          Write-Host "Logo installert"
+
+      # ══ BUILD 1: Kundeklient (incoming-only / QuickSupport) ════════════════
+      - name: "[Kunde] Patch APP_NAME"
+        shell: pwsh
+        run: |
+          $file = "libs/hbb_common/src/config.rs"
+          (Get-Content $file) `
+            -replace '"RustDesk"\.to_owned\(\)', '"KEGO Data Fjernhjelp".to_owned()' |
+            Set-Content $file
+
+      - name: "[Kunde] Patch incoming-only modus"
+        run: python3 .github/patch_incoming_only.py
+
+      - name: "[Kunde] Patch UI (tekster + UAC + server + buildnr)"
+        env:
+          BUILD_NR: ${{ github.run_number }}
+        run: python3 .github/patch_kego_ui.py
+
+      - name: "[Kunde] Bygg Windows portable"
         shell: pwsh
         env:
           VCPKG_ROOT: C:\vcpkg
           LLVM_HOME: ${{ env.LLVM_PATH }}
           LIBCLANG_PATH: ${{ env.LLVM_PATH }}\bin
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
         run: |
           $env:CARGO_INCREMENTAL = "0"
           python3 .\build.py --portable --hwcodec --flutter --vram
 
-      # ── Last ned tilleggsdriver og pakk ───────────────────────────────────
-      - name: Gi portable-exe nytt navn (med buildnummer)
+      - name: "[Kunde] Gi exe nytt navn"
         shell: pwsh
         env:
           BUILD_NR: ${{ github.run_number }}
@@ -230,21 +216,69 @@ jobs:
           $packer = Get-ChildItem -Recurse -Filter "rustdesk-*.exe" | Select-Object -First 1
           if ($packer) {
             Rename-Item $packer.FullName $outName
-            Copy-Item $outName "kego-fjernhjelp-windows.zip"
-            Write-Host "Self-extracting exe: $outName ($([math]::Round((Get-Item $outName).Length/1MB, 1)) MB)"
+            Write-Host "Kunde-exe: $outName"
           } else {
-            # Fallback: pakk release-mappen som zip
             $rel = "flutter\build\windows\x64\runner\Release"
             Rename-Item "$rel\rustdesk.exe" $outName -ErrorAction SilentlyContinue
-            Compress-Archive -Path "$rel\*" -DestinationPath "kego-fjernhjelp-windows.zip"
-            Write-Host "Fallback: zip-pakke"
+            Compress-Archive -Path "$rel\*" -DestinationPath $outName
           }
 
-      - name: Last opp artefakt
+      # ── Tilbakestill kildekode-patcher (behold logo-filer) ─────────────────
+      - name: Tilbakestill patchede filer
+        shell: bash
+        run: |
+          git checkout libs/hbb_common/src/config.rs
+          git checkout src/server/video_service.rs
+          git checkout src/lang/nb.rs
+          git checkout src/lang/en.rs
+          git checkout flutter/lib/common.dart
+
+      # ══ BUILD 2: Support-klient (full klient for KEGO Data-ansatte) ════════
+      - name: "[Support] Patch UI (server + buildnr)"
+        env:
+          BUILD_NR: ${{ github.run_number }}
+        run: python3 .github/patch_kego_support.py
+
+      - name: "[Support] Bygg Windows portable"
+        shell: pwsh
+        env:
+          VCPKG_ROOT: C:\vcpkg
+          LLVM_HOME: ${{ env.LLVM_PATH }}
+          LIBCLANG_PATH: ${{ env.LLVM_PATH }}\bin
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        run: |
+          $env:CARGO_INCREMENTAL = "0"
+          python3 .\build.py --portable --hwcodec --flutter --vram
+
+      - name: "[Support] Gi exe nytt navn"
+        shell: pwsh
+        env:
+          BUILD_NR: ${{ github.run_number }}
+        run: |
+          $outName = "kego-support-${env:BUILD_NR}.exe"
+          $packer = Get-ChildItem -Recurse -Filter "rustdesk-*.exe" | Select-Object -First 1
+          if ($packer) {
+            Rename-Item $packer.FullName $outName
+            Write-Host "Support-exe: $outName"
+          } else {
+            $rel = "flutter\build\windows\x64\runner\Release"
+            Rename-Item "$rel\rustdesk.exe" $outName -ErrorAction SilentlyContinue
+            Compress-Archive -Path "$rel\*" -DestinationPath $outName
+          }
+
+      # ── Last opp artefakter ────────────────────────────────────────────────
+      - name: Last opp kundeklient
         uses: actions/upload-artifact@v4
         with:
           name: kego-fjernhjelp-windows
-          path: kego-fjernhjelp-windows.zip
+          path: hjelp-${{ github.run_number }}.exe
+          retention-days: 30
+
+      - name: Last opp support-klient
+        uses: actions/upload-artifact@v4
+        with:
+          name: kego-support-windows
+          path: kego-support-${{ github.run_number }}.exe
           retention-days: 30
 
       - name: Opprett GitHub Release
@@ -252,9 +286,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION }}-kego-${{ github.run_number }}
-          name: "KEGO Data Fjernhjelp v${{ env.VERSION }} (build ${{ github.run_number }})"
-          files: kego-fjernhjelp-windows.zip
+          name: "KEGO Data v${{ env.VERSION }} (build ${{ github.run_number }})"
+          files: |
+            hjelp-${{ github.run_number }}.exe
+            kego-support-${{ github.run_number }}.exe
           body: |
-            ## KEGO Data Fjernhjelp for Windows — build ${{ github.run_number }}
-            Last ned `kego-fjernhjelp-windows.zip`, pakk ut og kjør `hjelp-${{ github.run_number }}.exe`.
-            Ingen installasjon nødvendig.
+            ## KEGO Data build ${{ github.run_number }}
+
+            ### Kundeklient (QuickSupport)
+            Last ned `hjelp-${{ github.run_number }}.exe` — send til kunder. Ingen installasjon nødvendig.
+
+            ### Support-klient (for KEGO Data-ansatte)
+            Last ned `kego-support-${{ github.run_number }}.exe` — brukes av support-tekniker for å koble til kunder.
