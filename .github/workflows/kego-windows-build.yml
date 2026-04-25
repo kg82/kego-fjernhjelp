@@ -227,7 +227,7 @@ jobs:
       - name: Tilbakestill patchede filer
         shell: bash
         run: |
-          git checkout libs/hbb_common/src/config.rs
+          git -C libs/hbb_common checkout src/config.rs
           git checkout src/server/video_service.rs
           git checkout src/lang/nb.rs
           git checkout src/lang/en.rs
