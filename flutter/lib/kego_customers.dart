@@ -1,7 +1,7 @@
 // KEGO Data — Kunder-panel for support-klienten
-// Merk: importerer IKKE flutter/material.dart separat — common.dart eksporterer det,
-// og common.dart definerer sin egen Dialog<T>-klasse som krasjer med Flutter-widgeten.
 import 'dart:convert';
+// common.dart definerer sin egen Dialog<T> — skjul Flutter-widgeten for å unngå konflikt
+import 'package:flutter/material.dart' hide Dialog;
 import 'package:flutter_hbb/common.dart';
 import 'package:http/http.dart' as http;
 
