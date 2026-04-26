@@ -177,6 +177,9 @@ jobs:
           Copy-Item kego-32.png  res/32x32.png
           Copy-Item res/icon.ico flutter/windows/runner/resources/app_icon.ico
           Copy-Item $logoFull "flutter/assets/logo.png"
+          # icon.png/ico brukes av load_icon_from_asset() (tray) og get_custom_icon() (service-registrering)
+          Copy-Item kego-256.png "flutter/assets/icon.png"
+          Copy-Item res/icon.ico "flutter/assets/icon.ico"
           Write-Host "Logo installert"
 
       # ══ BUILD 1: Kundeklient (incoming-only / QuickSupport) ════════════════

@@ -81,4 +81,30 @@ with open('flutter/lib/common.dart', 'w', encoding='utf-8') as f:
     f.write(common)
 print("  [OK] Mørkt tema satt som standard")
 
+# 5. Legg til "Kunder"-knapp i connection_page.dart
+print("[5/5] Legger til Kunder-knapp i connection_page.dart...")
+with open('flutter/lib/desktop/pages/connection_page.dart', 'r', encoding='utf-8') as f:
+    conn_page = f.read()
+
+# Legg til import øverst
+kego_import = "import 'package:flutter_hbb/kego_customers.dart';"
+if kego_import not in conn_page:
+    conn_page = conn_page.replace(
+        "// main window right pane",
+        f"// main window right pane\n{kego_import}"
+    )
+
+# Injiser Kunder-knapp i en ny Row rett over Connect-Row-en
+inject_before = "            Padding(\n              padding: const EdgeInsets.only(top: 13.0),"
+inject_row = "            Row(children: [const KegoCustomersButton()]).paddingOnly(bottom: 4),"
+if inject_before in conn_page and inject_row not in conn_page:
+    conn_page = conn_page.replace(
+        inject_before,
+        f"{inject_row}\n{inject_before}"
+    )
+
+with open('flutter/lib/desktop/pages/connection_page.dart', 'w', encoding='utf-8') as f:
+    f.write(conn_page)
+print("  [OK] Kunder-knapp lagt til i connection_page.dart")
+
 print("\n[SUCCESS] Support-klient tilpasninger ferdig!")
