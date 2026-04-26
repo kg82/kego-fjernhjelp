@@ -1,6 +1,7 @@
 // KEGO Data — Kunder-panel for support-klienten
+// Merk: importerer IKKE flutter/material.dart separat — common.dart eksporterer det,
+// og common.dart definerer sin egen Dialog<T>-klasse som krasjer med Flutter-widgeten.
 import 'dart:convert';
-import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:http/http.dart' as http;
 
@@ -105,12 +106,13 @@ class _KegoCustomersDialogState extends State<_KegoCustomersDialog> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Dialog(
-      backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 480, maxHeight: 540),
-        child: Column(
+        child: Material(
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // Header
@@ -217,6 +219,7 @@ class _KegoCustomersDialogState extends State<_KegoCustomersDialog> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }
