@@ -132,7 +132,7 @@ print("  [OK] Mørkt tema satt som standard")
 
 # 8. Strip all languages except nb and en from lang.rs
 print("[8/8] Fjerner alle språk unntatt norsk og engelsk fra lang.rs...")
-with open('src/lang.rs', 'r') as f:
+with open('src/lang.rs', 'r', encoding='utf-8') as f:
     lang_rs = f.read()
 
 lang_rs = re.sub(
@@ -154,7 +154,7 @@ lang_rs = re.sub(
     flags=re.DOTALL
 )
 
-with open('src/lang.rs', 'w') as f:
+with open('src/lang.rs', 'w', encoding='utf-8') as f:
     f.write(lang_rs)
 print("  [OK] Kun norsk (nb) og engelsk (en) kompilert")
 
